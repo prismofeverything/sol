@@ -20,10 +20,15 @@
 
 (def two-pi (* 2 js/Math.PI))
 (def paper-dimensions {:width 2800 :height 1380})
-(def draw (js/Raphael 0 0 (:width paper-dimensions) (:height paper-dimensions)))
+(def draw (js/Snap (:width paper-dimensions) (:height paper-dimensions)))
 (def layer-radius 75)
 (def board-radius 400)
-(def board-center {:x (* 0.5 (.-innerWidth js/window)) :y (* 0.5 (.-innerHeight js/window))})
+(def sun-radius (- board-radius layer-radius))
+(def zone-opacity 0.3)
+(def starmax 2000)
+(def board-center 
+  {:x (* 0.5 (.-innerWidth js/window)) 
+   :y (* 0.5 (.-innerHeight js/window))})
 
 (defn log
   [e]
@@ -35,13 +40,15 @@
 
 (defn move-to
   [point]
-  (log (str point))
-  (str "M" (js/Math.floor (:x point)) "," (js/Math.floor (:y point))))
+  (str 
+   "M" (js/Math.floor (:x point)) 
+   "," (js/Math.floor (:y point))))
 
 (defn line-to
   [point]
-  (log (str point))
-  (str "L" (js/Math.floor (:x point)) "," (js/Math.floor (:y point))))
+  (str 
+   "L" (js/Math.floor (:x point)) 
+   "," (js/Math.floor (:y point))))
 
 (defn line
   [draw {:keys [begin end color width]}]
@@ -80,24 +87,67 @@
 (def sol-colors
   [[:outer-orbit "#2255aa" 13]
    [:inner-orbit "#22aa55" 13]
-   [:convective-zone "#eecc55" 13]
-   [:radiative-zone "#de7f1b" 8]
-   [:core "#aa3322" 5]
+   [:convective-zone "#ffee22" 13]
+   [:radiative-zone "#d87f1b" 8]
+   [:core "#aa1100" 5]
    [:warp "#000000" 0]])
+
+(def membrane-colors ["#0000ff" "#00ff00" "#0000ff" "#0000ff" "#000000" "#000000"])
+(def radial-colors ["#0000ff" "#0000ff" "#0000ff" "#0000ff" "#000000" "#000000"])
+
+;; (defn draw-sun
+;;   []
+;;   (let [inner-radius sun-radius]
+;;     (attr 
+;;      (.filter
+;;       draw 
+;;       (str 
+;;        "<feImage xlink:href=\"img/SOL.jpg\" result=\"sun\" x=\"" (- (:x board-center) inner-radius) 
+;;        "\" y=\"" (- (:y board-center) inner-radius) 
+;;        "\" width=\"" (* 2 inner-radius) 
+;;        "\" height=\"" (* 2 inner-radius)
+;;        "\" /><feBlend mode=\"darken\" in2=\"sun\" />"))
+;;      {:id "sun"})))
+
+(defn draw-sun
+  []
+  (let [inner-radius sun-radius]
+    (.image
+     draw "img/SOL.jpg"
+     (- (:x board-center) inner-radius) 
+     (- (:y board-center) inner-radius) (* 2 inner-radius) (* 2 inner-radius))))
+
+(defn distance
+  [a b]
+  (let [dx (- (:x a) (:x b))
+        dy (- (:y a) (:y b))]
+    (js/Math.sqrt (+ (* dx dx) (* dy dy)))))
+
+(defn inside-sun?
+  [p]
+  (let [d (distance p board-center)]
+    (< d (- sun-radius layer-radius))))
+
+(defn random-point
+  []
+  {:x (* (:width paper-dimensions) (js/Math.random))
+   :y (* (:height paper-dimensions) (js/Math.random))})
 
 (defn draw-stars
   []
   (mapv
    (fn [_]
-     (circle
-      draw
-      {:x (* (:width paper-dimensions) (js/Math.random))
-       :y (* (:height paper-dimensions) (js/Math.random))
-       :radius (* (js/Math.log (+ js/Math.E (* 3 (js/Math.random)))))
-       :opacity (js/Math.random)
-       :fill "#ffffff"
-       :stroke "#ffffff"}))
-   (range 1000)))
+     (let [star-position (random-point)]
+       (if-not (inside-sun? star-position)
+         (circle
+          draw
+          (merge 
+           star-position
+           {:radius (* (js/Math.log (+ js/Math.E (* 3 (js/Math.random)))))
+            :opacity (js/Math.random)
+            :fill "#ffffff"
+            :stroke "#ffffff"})))))
+   (range starmax)))
 
 (defn draw-board
   []
@@ -110,34 +160,64 @@
                     :radius radius
                     :color color}))
                sol-colors (range))
-        layers (map vector board (concat (rest board) [nil]))]
-    (mapv 
-     (fn [[outer inner]]
-       (let [angles (radial-angles (:cells outer))
-             spec (merge
-                   board-center
-                   {:radius (:radius outer) :stroke-width 3 :fill-opacity (if (< (:number outer) 2) 1 1)
-                    :fill (:color outer) :stroke (or (:color inner) (:color outer))})
-             zone (circle draw spec)
-             radials (if inner 
-                       (mapv 
-                        (fn [angle]
-                          (radial
-                           draw
-                           {:center board-center
-                            :angle angle
-                            :begin-radius (:radius outer)
-                            :end-radius (:radius inner)
-                            :color (:color inner)}))
-                        angles))]
-         (assoc outer
-           :zone zone
-           :radials radials)))
-     layers)))
+        layers (map vector board (concat (rest board) [nil]))
+        sun (draw-sun)
+        stars (draw-stars)
+        cells (mapv 
+               (fn [[outer inner]]
+                 (let [angles (radial-angles (:cells outer))
+                       zone-radius (- (:radius outer) (* 0.5 layer-radius))
+                       zone (if-not (< zone-radius 0) 
+                              (circle
+                               draw 
+                               (merge
+                                board-center
+                                {:radius zone-radius
+                                 :stroke-width layer-radius
+                                 ;; :filter (.filter draw "<feBlend mode=\"multiply\" in=\"SourceGraphic\" in2=\"BackgroundImage\">")
+                                 :fill "none" ;; (:color outer)
+                                 :fill-opacity 0
+                                 :stroke-opacity (if (> 2 (:number outer)) zone-opacity 0.5)
+                                 :stroke (:color outer)})))
+                       radials (if inner 
+                                 (mapv 
+                                  (fn [angle]
+                                    (radial
+                                     draw
+                                     {:center board-center
+                                      :angle (+ js/Math.PI angle)
+                                      :begin-radius (:radius outer)
+                                      :end-radius (:radius inner)
+                                      :color (get radial-colors (:number outer)) ;; (:color inner)
+                                      }))
+                                  angles))
+                       membrane-color (get membrane-colors (:number outer))
+                       membrane (circle
+                                 draw 
+                                 (merge
+                                  board-center
+                                  {:radius (:radius outer) :stroke-width 3 :fill (:color outer)
+                                   :fill-opacity 0 ;; (if (< (:number outer) 2) 0.5 0.5)
+                                   :stroke membrane-color}))]
+                   (assoc outer
+                     :membrane membrane
+                     :zone zone
+                     :radials radials)))
+               layers)
+        core-radius (- board-radius (* 5 layer-radius))
+        core (circle 
+              draw 
+              (merge 
+               board-center 
+               {:radius core-radius 
+                :stroke-width 0
+                :fill "#000000" 
+                :fill-opacity 1 ;; zone-opacity
+                }))]
+    cells))
 
 (defn init
   [data]
-  (draw-stars)
   (draw-board))
 
 (defn dispatch-message

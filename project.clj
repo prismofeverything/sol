@@ -25,7 +25,7 @@
     {:libs ["singult"]
      :source-paths ["src/cljs"]  
      :compiler 
-     {:externs ["resources/public/js/externs/raphael.externs.js"]
+     {:externs ["resources/public/js/externs/snap.svg.externs.js"]
       :optimizations :whitespace
       :output-to  "resources/public/js/app/sol.js"
       :output-dir "resources/public/js/app/out"}}}})
