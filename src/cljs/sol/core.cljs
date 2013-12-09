@@ -66,7 +66,9 @@
   [divisions]
   (let [interval (/ two-pi divisions)
         half (* 0.5 interval)]
-    (range half two-pi interval)))
+    (range half two-pi interval)
+    ;; (range 0 two-pi interval)
+))
 
 (defn radial-offset
   [center angle radius]
@@ -185,7 +187,7 @@
                                     (radial
                                      draw
                                      {:center board-center
-                                      :angle (+ js/Math.PI angle)
+                                      :angle (+ (* 1.5 js/Math.PI) angle)
                                       :begin-radius (:radius outer)
                                       :end-radius (:radius inner)
                                       :color (get radial-colors (:number outer)) ;; (:color inner)
