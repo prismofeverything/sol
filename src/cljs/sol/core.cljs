@@ -19,16 +19,19 @@
 (def ws (new js/WebSocket ws-url))
 
 (def two-pi (* 2 js/Math.PI))
-(def paper-dimensions {:width 2800 :height 1380})
+(def paper-dimensions {:width 820 :height 820})
+;; (def paper-dimensions {:width (.-innerWidth js/window) :height (.-innerHeight js/window)})
+;; (def paper-dimensions {:width 2800 :height 1380})
 (def draw (js/Snap (:width paper-dimensions) (:height paper-dimensions)))
 (def layer-radius 75)
 (def board-radius 400)
 (def sun-radius (- board-radius layer-radius))
 (def zone-opacity 0.3)
-(def starmax 2000)
+(def starmax 1000)
+;; (def starmax 2000)
 (def board-center 
-  {:x (* 0.5 (.-innerWidth js/window)) 
-   :y (* 0.5 (.-innerHeight js/window))})
+  {:x (* 0.5 (:width paper-dimensions))
+   :y (* 0.5 (:height paper-dimensions))})
 
 (defn log
   [e]
@@ -220,7 +223,8 @@
 
 (defn init
   [data]
-  (draw-board))
+  (draw-board)
+  (log (.toString draw)))
 
 (defn dispatch-message
   []
