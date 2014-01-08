@@ -97,8 +97,10 @@
    [:core "#aa1100" 5]
    [:warp "#000000" 0]])
 
-(def membrane-colors ["#0000ff" "#00ff00" "#0000ff" "#0000ff" "#000000" "#000000"])
-(def radial-colors ["#0000ff" "#0000ff" "#0000ff" "#0000ff" "#000000" "#000000"])
+
+;; (def membrane-colors ["#ffffff" "#49AD1A" "#ffffff" "#ffffff" "#000000" "#000000"])
+(def membrane-colors ["#ffffff" "#fc8a22" "#ffffff" "#ffffff" "#000000" "#000000"])
+(def radial-colors ["#ffffff" "#ffffff" "#ffffff" "#ffffff" "#000000" "#000000"])
 
 ;; (defn draw-sun
 ;;   []
