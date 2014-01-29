@@ -79,7 +79,7 @@
        (let [key [here-key cell]
              here (remove 
                    #(= key %) 
-                   [[here-key (radial-before cell here-cells)] [here-key (radial-after cell here-cells)]])
+                   (set [[here-key (radial-before cell here-cells)] [here-key (radial-after cell here-cells)]]))
              above (mediate-phase cell here-key here-cells above-key above-cells epsilon)
              below (mediate-phase cell here-key here-cells below-key below-cells epsilon)]
          (assoc layer key (vec (concat above here below)))))
