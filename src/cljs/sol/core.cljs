@@ -98,7 +98,6 @@
    [:core "#aa1100" 5]
    [:warp "#000000" 0]])
 
-
 ;; (def membrane-colors ["#ffffff" "#49AD1A" "#ffffff" "#ffffff" "#000000" "#000000"])
 (def membrane-colors ["#ffffff" "#fc8a22" "#ffffff" "#ffffff" "#000000" "#000000"])
 (def radial-colors ["#ffffff" "#ffffff" "#ffffff" "#ffffff" "#000000" "#000000"])
@@ -151,7 +150,7 @@
           draw
           (merge 
            star-position
-           {:radius (* (js/Math.log (+ js/Math.E (* 0.3 (js/Math.random)))))
+           {:radius (* (js/Math.log (+ js/Math.E (* 0.1 (js/Math.random)))))
             :opacity (js/Math.random)
             :fill "#ffffff"
             :stroke "#ffffff"})))))

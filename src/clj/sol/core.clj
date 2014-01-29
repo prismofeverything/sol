@@ -100,18 +100,32 @@
      {}
      (map 
       (fn [[[layer cell] neighborhood]]
-        [[layer cell] {:layer layer :cell cell :neighbors neighborhood}])
+        [[layer cell] 
+         {:layer layer 
+          :cell cell 
+          :neighbors neighborhood}])
       neighbors))))
 
 (defn make-player
   [color start]
-  (let [after (radial-after start)]
+  (let [after (radial-after start)
+        harvest-start [:upper after]
+        build-start [:upper (radial-after after)]]
     {:color color
      :energy 0
-     :station start
+     :orbit start
      :ships {:reserve 13 :bay 8 :board []}
-     :harvest {:reserve 4 :board [[:upper after]]}
-     :build {:reserve 4 :board [[:upper (radial-after after)]]}
-     :transmit {:reserve 3 :board []}
      :bridge {:reserve 13 :board []}
+     :build {:reserve 4 :board [build-start]}
+     :harvest {:reserve 4 :board [harvest-start]}
+     :transmit {:reserve 3 :board []}
      :ark 0}))
+
+(defn new-game
+  [colors]
+  (let [starts (range 13 1 (/ -12 (count colors)))
+        players (map make-player colors starts)
+        board (layout-board sol-layers)]
+    {:players players
+     :board board
+     :order (cycle colors)}))
