@@ -1,8 +1,6 @@
 (ns sol.core
   (:require [clojure.string :as string]))
 
-;; positions on the game board will be uniquely identified as a pair (layer cell)
-
 (def sol-layers 
   [[:upper 13]
    [:lower 13]
@@ -104,3 +102,16 @@
       (fn [[[layer cell] neighborhood]]
         [[layer cell] {:layer layer :cell cell :neighbors neighborhood}])
       neighbors))))
+
+(defn make-player
+  [color start]
+  (let [after (radial-after start)]
+    {:color color
+     :energy 0
+     :station start
+     :ships {:reserve 13 :bay 8 :board []}
+     :harvest {:reserve 4 :board [[:upper after]]}
+     :build {:reserve 4 :board [[:upper (radial-after after)]]}
+     :transmit {:reserve 3 :board []}
+     :bridge {:reserve 13 :board []}
+     :ark 0}))
