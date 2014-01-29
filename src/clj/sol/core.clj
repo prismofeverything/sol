@@ -8,7 +8,8 @@
    [:lower 13]
    [:convective 13]
    [:radiative 8]
-   [:core 5]])
+   [:core 5]
+   [:wormhole 1]])
 
 (def sol-epsilon 0.013)
 
@@ -75,10 +76,13 @@
     {}
     (reduce
      (fn [layer cell]
-       (let [here [[here-key (radial-before cell here-cells)] [here-key (radial-after cell here-cells)]]
+       (let [key [here-key cell]
+             here (remove 
+                   #(= key %) 
+                   [[here-key (radial-before cell here-cells)] [here-key (radial-after cell here-cells)]])
              above (mediate-phase cell here-key here-cells above-key above-cells epsilon)
              below (mediate-phase cell here-key here-cells below-key below-cells epsilon)]
-         (assoc layer [here-key cell] (vec (concat above here below)))))
+         (assoc layer key (vec (concat above here below)))))
      {} (cells-range here-cells))))
 
 (defn all-neighbors
