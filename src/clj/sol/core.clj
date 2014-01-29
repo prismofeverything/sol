@@ -1,5 +1,4 @@
-(ns sol.core
-  (:require [clojure.string :as string]))
+(ns sol.core)
 
 (def sol-layers 
   [[:upper 13]
@@ -102,30 +101,154 @@
       (fn [[[layer cell] neighborhood]]
         [[layer cell] 
          {:layer layer 
-          :cell cell 
-          :neighbors neighborhood}])
+          :cell cell
+          :neighbors neighborhood
+          :ships {}
+          :station nil
+          :bridges {}}])
       neighbors))))
 
+(defn add-station-to-board
+  [board player at type]
+  (if-let [pre-existing (get-in board [at :station])]
+    (throw 
+     (ex-info 
+      (format 
+       "%s player cannot add a %s station at %s because there is already a %s %s station there!"
+       (:color player) type at (:color pre-existing) (:type pre-existing))))
+    (assoc-in 
+     board [at :station] 
+     {:color (:color player) 
+      :type type})))
+
 (defn make-player
-  [color start]
-  (let [after (radial-after start)
+  [board color start]
+  (let [after (radial-after start 13)
         harvest-start [:upper after]
-        build-start [:upper (radial-after after)]]
-    {:color color
-     :energy 0
-     :orbit start
-     :ships {:reserve 13 :bay 8 :board []}
-     :bridge {:reserve 13 :board []}
-     :build {:reserve 4 :board [build-start]}
-     :harvest {:reserve 4 :board [harvest-start]}
-     :transmit {:reserve 3 :board []}
-     :ark 0}))
+        build-start [:upper (radial-after after 13)]
+        player {:color color
+                :energy 0
+                :orbit start
+                :ships {:reserve 13 :bay 8 :board {}}
+                :bridges {:reserve 13 :board {}}
+                :build {:reserve 4 :board {build-start true}}
+                :harvest {:reserve 4 :board {harvest-start true}}
+                :transmit {:reserve 3 :board {}}
+                :ark 0}
+        board (add-station-to-board board player harvest-start :harvest)
+        board (add-station-to-board board player build-start :build)]
+    [board player]))
 
 (defn new-game
   [colors]
   (let [starts (range 13 1 (/ -12 (count colors)))
-        players (map make-player colors starts)
-        board (layout-board sol-layers)]
+        board (layout-board sol-layers)
+        [board players] (reduce
+                         (fn [[board players] [color start]]
+                           (let [[board player] (make-player board color start)]
+                             [board (assoc players (:color player) player)]))
+                         [board {}] (map vector colors starts))]
     {:players players
      :board board
-     :order (cycle colors)}))
+     :order colors}))
+
+(defn advance-orbit
+  [player]
+  (update-in player [:orbit] #(radial-after % 13)))
+
+(defn ships-in-bay?
+  [player]
+  (> (get-in player [:ships :bay]) 0))
+
+(defn ships-at?
+  [player at]
+  (let [ships-at (get-in player [:ships :board at])]
+    (and ships-at (< 0 ships-at))))
+
+(defn adjacent-cells?
+  [board from to]
+  (some #{to} (get-in board [from :neighbors])))
+
+(def barrier-layers?
+  #{(list :convective :lower)
+    (list :convective :radiative)
+    (list :core :radiative)})
+
+(defn bridge-required?
+  [[from-layer from-cell] [to-layer to-cell]]
+  (barrier-layers? (sort [from-layer to-layer])))
+
+(defn find-bridge
+  [board from to]
+  (get-in board [from :bridges to]))
+
+(defn inc-nil
+  [n]
+  (if n (inc n) 1))
+
+(defn void?
+  [x]
+  (or (nil? x) (<= x 0)))
+
+(defn place-ship
+  [game color at]
+  (let [game (update-in game [:players color :ships :board at] inc-nil)
+        game (update-in game [:board at :ships color] inc-nil)]
+    game))
+
+(defn remove-ship
+  [game color at]
+  (if (void? (get-in game [:players color :ships :board at]))
+    (throw 
+     (ex-info 
+      (format "cannot remove %s ship from %s because there are no %s ships there!" color at color) color))
+    (let [game (update-in game [:players color :ships :board at] dec)
+          game (update-in game [:board at :ships color] dec)]
+      game)))
+
+(defn move-ship
+  [game color from to]
+  (let [game (remove-ship game color from)]
+    (place-ship game color to)))
+
+(defn get-player
+  [game color]
+  (get-in game [:players color]))
+
+(defn launch-ship
+  [game color layer]
+  (let [player (get-player game color)]
+    (if-not (ships-in-bay? player)
+      (throw (ex-info (format "%s player has no ships in bay!" color) player))
+      (let [at [layer (:orbit player)]
+            game (update-in game [:players color :ships :bay] dec)]
+        (place-ship game color at)))))
+
+(defn gain-energy
+  [game color amount]
+  (update-in game [:players color :energy] #(+ % amount)))
+
+(defn move-action
+  [game color from to]
+  (let [player (get-player game color)]
+    (cond 
+     (not (ships-at? player from))
+     (throw (ex-info (format "%s player has no ships at %s!" color from) player))
+
+     (not (adjacent-cells? (:board game) from to))
+     (throw 
+      (ex-info 
+       (format "%s player cannot move ship from %s to %s because they are not adjacent!" color from to) player))
+     
+     (bridge-required? from to)
+     (if-let [bridge (find-bridge (:board game) from to)]
+       (let [game (move-ship game color from to)]
+         (if-not (= bridge color)
+           (gain-energy game bridge 1)
+           game))
+       (throw 
+        (ex-info 
+         (format "%s player cannot move ship from %s to %s because there is no bridge present!" color from to) {})))
+
+     :else (move-ship game color from to))))
+
