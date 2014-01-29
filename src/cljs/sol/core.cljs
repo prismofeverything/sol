@@ -26,7 +26,8 @@
 (def layer-radius 75)
 (def board-radius 400)
 (def sun-radius (- board-radius layer-radius))
-(def zone-opacity 0.3)
+(def orbit-opacity 0.8)
+(def zone-opacity 0.5)
 (def starmax 1000)
 ;; (def starmax 2000)
 (def board-center 
@@ -91,7 +92,7 @@
 
 (def sol-colors
   [[:outer-orbit "#2255aa" 13]
-   [:inner-orbit "#22aa55" 13]
+   [:inner-orbit "#227733" 13]
    [:convective-zone "#ffee22" 13]
    [:radiative-zone "#d87f1b" 8]
    [:core "#aa1100" 5]
@@ -150,7 +151,7 @@
           draw
           (merge 
            star-position
-           {:radius (* (js/Math.log (+ js/Math.E (* 3 (js/Math.random)))))
+           {:radius (* (js/Math.log (+ js/Math.E (* 0.3 (js/Math.random)))))
             :opacity (js/Math.random)
             :fill "#ffffff"
             :stroke "#ffffff"})))))
@@ -169,7 +170,6 @@
                sol-colors (range))
         layers (map vector board (concat (rest board) [nil]))
         sun (draw-sun)
-        stars (draw-stars)
         cells (mapv 
                (fn [[outer inner]]
                  (let [angles (radial-angles (:cells outer))
@@ -184,7 +184,7 @@
                                  ;; :filter (.filter draw "<feBlend mode=\"multiply\" in=\"SourceGraphic\" in2=\"BackgroundImage\">")
                                  :fill "none" ;; (:color outer)
                                  :fill-opacity 0
-                                 :stroke-opacity (if (> 2 (:number outer)) zone-opacity 0.5)
+                                 :stroke-opacity (if (> 2 (:number outer)) orbit-opacity zone-opacity)
                                  :stroke (:color outer)})))
                        radials (if inner 
                                  (mapv 
@@ -192,7 +192,7 @@
                                     (radial
                                      draw
                                      {:center board-center
-                                      :angle (+ (* 1.5 js/Math.PI) angle)
+                                      :angle (+ (* 1.0 js/Math.PI) angle)
                                       :begin-radius (:radius outer)
                                       :end-radius (:radius inner)
                                       :color (get radial-colors (:number outer)) ;; (:color inner)
@@ -220,7 +220,8 @@
                 :stroke-width 0
                 :fill "#000000" 
                 :fill-opacity 1 ;; zone-opacity
-                }))]
+                }))
+        stars (draw-stars)]
     cells))
 
 (defn init
