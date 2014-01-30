@@ -1,18 +1,27 @@
 (ns sol.core)
 
-(def sol-layers 
-  [[:upper 13]
-   [:lower 13]
-   [:convective 13]
-   [:radiative 8]
-   [:core 5]
-   [:wormhole 1]])
+(def sol-layers
+  [{:name :upper :cells 13 :reward 1 :instability 0}
+   {:name :lower :cells 13 :reward 2 :instability 0}
+   {:name :convective :cells 13 :reward 3 :instability 1}
+   {:name :radiative :cells 8 :reward 5 :instability 2}
+   {:name :core :cells 5 :reward 8 :instability 3}
+   {:name :wormhole :cells 1 :reward 2 :instability 1}])
 
-(def layer-cells
-  (into {} sol-layers))
+(defn layer-map
+  [layers key]
+  (into 
+   {} 
+   (map 
+    (juxt :name key) 
+    layers)))
 
 (def layer-names 
-  (map first sol-layers))
+  (map :name sol-layers))
+
+(def layer-cells (layer-map sol-layers :cells))
+(def layer-reward (layer-map sol-layers :reward))
+(def layer-instability (layer-map sol-layers :instability))
 
 (def sol-epsilon 0.013)
 
@@ -20,7 +29,46 @@
   [layer]
   (.indexOf layer-names layer))
 
+(def cards-per-suit 15)
+
+(def instability-suits
+  [:explosion
+   :reverberation 
+   :subduction 
+   :oscillation 
+   :collision 
+   :striation
+   :reflection
+   :tension
+   :eruption
+   :refraction
+   :crystallization
+   :condensation
+   :convolution
+   :dissipation
+   :ionization
+   :absorption
+   :revolution
+   :rotation
+   :fluctuation
+   :friction
+   :acceleration])
+
+(def instability-limit 13)
+
+(defn construct-deck
+  [suits]
+  (shuffle (mapcat (partial repeat cards-per-suit) suits)))
+
+(defn construct-instability-deck
+  [colors]
+  (let [total-suits (+ 2 (count colors))
+        instability-suit (first instability-suits)
+        other-suits (take (dec total-suits) (shuffle (rest instability-suits)))]
+    (construct-deck (cons instability-suit other-suits))))
+
 (defn diff-ns
+  "take the difference between every subsequent number in the list"
   [ns]
   (loop [prev (first ns) 
          ns (rest ns) 
@@ -54,10 +102,11 @@
   [a-start a-interval b-start b-interval epsilon]
   (let [a-end (+ a-start a-interval)
         b-end (+ b-start b-interval)]
-    (or (and (<= (+ a-start epsilon) b-start) (< b-start (- a-end epsilon)))
-        (and (< (+ a-start epsilon) b-end) (<= b-end (- a-end epsilon)))
-        (and (<= (+ b-start epsilon) a-start) (< a-start (- b-end epsilon)))
-        (and (< (+ b-start epsilon) a-end) (<= a-end (- b-end epsilon))))))
+    (or 
+     (and (<= (+ a-start epsilon) b-start) (< b-start (- a-end epsilon)))
+     (and (< (+ a-start epsilon) b-end) (<= b-end (- a-end epsilon)))
+     (and (<= (+ b-start epsilon) a-start) (< a-start (- b-end epsilon)))
+     (and (< (+ b-start epsilon) a-end) (<= a-end (- b-end epsilon))))))
 
 (defn radial-overlap?
   [a-start a-interval b-start b-interval epsilon]
@@ -116,7 +165,7 @@
 
 (defn layout-board
   [layers]
-  (let [neighbors (all-neighbors sol-layers)]
+  (let [neighbors (all-neighbors layers)]
     (into 
      {}
      (map 
@@ -161,10 +210,16 @@
         board (place-station board color build-start :build)]
     [board player]))
 
+(defn fresh-instability
+  [colors]
+  {:level 0
+   :deck (construct-instability-deck colors)
+   :suit nil})
+
 (defn new-game
   [colors]
   (let [starts (range 13 1 (/ -12 (count colors)))
-        board (layout-board sol-layers)
+        board (layout-board (map (juxt :name :cells) sol-layers))
         [board players] (reduce
                          (fn [[board players] [color start]]
                            (let [[board player] (make-player board color start)]
@@ -172,11 +227,27 @@
                          [board {}] (map vector colors starts))]
     {:players players
      :board board
-     :order colors}))
+     :order colors
+     :instability (fresh-instability colors)}))
 
 (defn advance-orbit
   [player]
   (update-in player [:orbit] #(radial-after % 13)))
+
+(defn pull-instability-cards
+  [game number]
+  (if (zero? number)
+    game
+    (let [cards-drawn (take number (get-in game [:instability :deck]))
+          explosions (count (filter #(= % (first instability-suits)) cards-drawn))]
+      (-> game 
+          (update-in [:instability :level] #(+ % explosions))
+          (update-in [:instability :deck] (partial drop number))
+          (update-in [:instability :suit] (constantly (last cards-drawn)))))))
+
+(defn nova?
+  [game]
+  (>= (get-in game [:instability :level]) instability-limit))
 
 (defn ships-in-bay?
   [player]
@@ -214,9 +285,9 @@
 
 (defn place-ship
   [game color at]
-  (let [game (update-in game [:players color :ships :board at] inc-nil)
-        game (update-in game [:board at :ships color] inc-nil)]
-    game))
+  (-> game 
+      (update-in [:players color :ships :board at] inc-nil)
+      (update-in [:board at :ships color] inc-nil)))
 
 (defn remove-ship
   [game color at]
@@ -224,9 +295,9 @@
     (throw 
      (ex-info 
       (format "cannot remove %s ship from %s because there are no %s ships there!" color at color) color))
-    (let [game (update-in game [:players color :ships :board at] dec)
-          game (update-in game [:board at :ships color] dec)]
-      game)))
+    (-> game 
+        (update-in [:players color :ships :board at] dec)
+        (update-in [:board at :ships color] dec))))
 
 (defn remove-ships
   [game color cells]
@@ -237,8 +308,9 @@
 
 (defn move-ship
   [game color from to]
-  (let [game (remove-ship game color from)]
-    (place-ship game color to)))
+  (-> game 
+      (remove-ship color from)
+      (place-ship color to)))
 
 (defn get-player
   [game color]
@@ -339,8 +411,9 @@
 
 (defn return-ships-to-reserve
   [game color cells]
-  (let [game (remove-ships game color cells)]
-    (update-in game [:players color :ships :reserve] #(+ (count cells) %))))
+  (-> game
+      (remove-ships color cells)
+      (update-in [:players color :ships :reserve] #(+ (count cells) %))))
 
 (defn player-station
   [player at type]
@@ -348,27 +421,31 @@
     (throw
      (ex-info
       (format "%s player has no %s stations left in their reserve!" (:color player) type) player))
-    (let [player (update-in player [type :reserve] dec)
-          player (update-in player [type :board at] (constantly true))]
-      player)))
+    (-> player 
+        (update-in [type :reserve] dec)
+        (update-in [type :board at] (constantly true)))))
 
 (defn convert-station
   [game color cells at type]
-  (let [game (return-ships-to-reserve game color cells)
-        game (update-in game [:players color] #(player-station % at type))
-        game (update-in game [:board] #(place-station % color at type))]
-    game))
+  (-> game 
+      (update-in [:players color] #(player-station % at type))
+      (update-in [:board] #(place-station % color at type))))
 
 (defn convert-bridge
   [game color cells at]
-  (let [[_ source] (sort-by (comp layer-index first) cells)
-        game (return-ships-to-reserve game color cells)
-        game (update-in game [:players color :bridges :reserve] dec)
-        game (update-in game [:players color :bridges :board source] #(conj % at))
-        game (update-in game [:players color :bridges :board at] #(conj % source))
-        game (update-in game [:board source :bridges at] (constantly color))
-        game (update-in game [:board at :bridges source] (constantly color))]
-    game))
+  (let [[_ source] (sort-by (comp layer-index first) cells)]
+    (-> game 
+        (update-in [:players color :bridges :reserve] dec)
+        (update-in [:players color :bridges :board source] #(conj % at))
+        (update-in [:players color :bridges :board at] #(conj % source))
+        (update-in [:board source :bridges at] (constantly color))
+        (update-in [:board at :bridges source] (constantly color)))))
+
+(defn convert-ships
+  [game color cells at type]
+  (if (= type :bridge)
+    (convert-bridge game color cells at)
+    (convert-station game color cells at type)))
 
 (defn convert-action
   [game color cells at type]
@@ -383,6 +460,7 @@
      (throw (ex-info (format "%s player does not have ships in all of %s!" color cells) {}))
 
      :else
-     (if (= type :bridge)
-       (convert-bridge game color cells at)
-       (convert-station game color cells at type)))))
+     (-> game
+         (return-ships-to-reserve color cells)
+         (convert-ships color cells at type)
+         (pull-instability-cards (get layer-instability (first at)))))))

@@ -5,6 +5,17 @@
 (def game
   (sol/new-game [:blue :purple :green]))
 
+(deftest instability-test
+  (let [total-instability-cards (* (+ 2 (count (:order game))) sol/cards-per-suit)
+        initial-pull 12]
+    (is (not (sol/nova? game)))
+    (is (= total-instability-cards (count (get-in game [:instability :deck]))))
+    (let [game (sol/pull-instability-cards game initial-pull)]
+      (is (= (- total-instability-cards initial-pull) (count (get-in game [:instability :deck]))))
+      (is (get-in game [:instability :suit]))
+      (let [game (sol/pull-instability-cards game (- total-instability-cards initial-pull))]
+        (is (sol/nova? game))))))
+
 (deftest move-test
   (let [orbit (get-in game [:players :blue :orbit])
         upper-cells (:upper sol/layer-cells)
