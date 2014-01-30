@@ -8,7 +8,29 @@
    [:core 5]
    [:wormhole 1]])
 
+(def layer-cells
+  (into {} sol-layers))
+
+(def layer-names 
+  (map first sol-layers))
+
 (def sol-epsilon 0.013)
+
+(defn layer-index
+  [layer]
+  (.indexOf layer-names layer))
+
+(defn diff-ns
+  [ns]
+  (loop [prev (first ns) 
+         ns (rest ns) 
+         diffs []] 
+    (if (empty? ns) 
+      diffs 
+      (recur 
+       (first ns) 
+       (rest ns) 
+       (conj diffs (- (first ns) prev))))))
 
 (defn radial-before
   [n limit]
@@ -252,3 +274,52 @@
 
      :else (move-ship game color from to))))
 
+(defn harvest-pattern?
+  [board cells [layer cell]]
+  (and 
+   (= 2 (count cells))
+   (= 1 (count (set (cons layer (map first cells)))))
+   (let [[[_ a-cell] [_ b-cell]] cells
+         cells-in-layer (get layer-cells layer)
+         before (radial-before cell cells-in-layer)
+         after (radial-after cell cells-in-layer)]
+     (= (sort [a-cell b-cell]) (sort [before after])))))
+
+(defn build-pattern?
+  [board cells [layer cell]]
+  (and 
+   (= 2 (count cells))
+   (= 1 (count (set (cons layer (map first cells)))))
+   (let [[[_ a-cell] [_ b-cell]] cells
+         cells-in-layer (get layer-cells layer)
+         before (radial-before cell cells-in-layer)
+         after (radial-after cell cells-in-layer)
+         signature (sort [a-cell b-cell])]
+     (or 
+      (= signature (sort [cell after]))
+      (= signature (sort [cell before]))))))
+
+(defn bridge-pattern?
+  [board cells to]
+  (and
+   (= 2 (count cells))
+   (let [[a b] (sort-by (comp layer-index first) cells)
+         layer-order (map (comp layer-index first) (concat [a b] [to]))
+         diffs (diff-ns layer-order)]
+     (and 
+      (= diffs (list 1 1))
+      (adjacent-cells? board a b)
+      (adjacent-cells? board b to)))))
+
+(defn transmit-pattern?
+  [board cells [layer cell]]
+  (and
+   (= 3 (count cells))
+   (let [[a b c] cells])))
+
+(defn pattern-present?
+  [game color at type]
+  ())
+
+(defn convert-action
+  [game color at type])
