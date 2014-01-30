@@ -130,17 +130,17 @@
           :bridges {}}])
       neighbors))))
 
-(defn add-station-to-board
-  [board player at type]
+(defn place-station
+  [board color at type]
   (if-let [pre-existing (get-in board [at :station])]
     (throw 
      (ex-info 
       (format 
        "%s player cannot add a %s station at %s because there is already a %s %s station there!"
-       (:color player) type at (:color pre-existing) (:type pre-existing))))
+       color type at (:color pre-existing) (:type pre-existing))))
     (assoc-in 
      board [at :station] 
-     {:color (:color player) 
+     {:color color
       :type type})))
 
 (defn make-player
@@ -157,8 +157,8 @@
                 :harvest {:reserve 4 :board {harvest-start true}}
                 :transmit {:reserve 3 :board {}}
                 :ark 0}
-        board (add-station-to-board board player harvest-start :harvest)
-        board (add-station-to-board board player build-start :build)]
+        board (place-station board color harvest-start :harvest)
+        board (place-station board color build-start :build)]
     [board player]))
 
 (defn new-game
@@ -227,6 +227,13 @@
     (let [game (update-in game [:players color :ships :board at] dec)
           game (update-in game [:board at :ships color] dec)]
       game)))
+
+(defn remove-ships
+  [game color cells]
+  (reduce 
+   (fn [game at]
+     (remove-ship game color at))
+   game cells))
 
 (defn move-ship
   [game color from to]
@@ -324,9 +331,58 @@
       (adjacent-cells? board a b)
       (adjacent-cells? board b c)))))
 
-(defn pattern-present?
-  [game color at type]
-  ())
+(def pattern-present?
+  {:harvest harvest-pattern?
+   :build build-pattern?
+   :bridge bridge-pattern?
+   :transmit transmit-pattern?})
+
+(defn return-ships-to-reserve
+  [game color cells]
+  (let [game (remove-ships game color cells)]
+    (update-in game [:players color :ships :reserve] #(+ (count cells) %))))
+
+(defn player-station
+  [player at type]
+  (if (>= 0 (get-in player [type :reserve]))
+    (throw
+     (ex-info
+      (format "%s player has no %s stations left in their reserve!" (:color player) type) player))
+    (let [player (update-in player [type :reserve] dec)
+          player (update-in player [type :board at] (constantly true))]
+      player)))
+
+(defn convert-station
+  [game color cells at type]
+  (let [game (return-ships-to-reserve game color cells)
+        game (update-in game [:players color] #(player-station % at type))
+        game (update-in game [:board] #(place-station % color at type))]
+    game))
+
+(defn convert-bridge
+  [game color cells at]
+  (let [[_ source] (sort-by (comp layer-index first) cells)
+        game (return-ships-to-reserve game color cells)
+        game (update-in game [:players color :bridges :reserve] dec)
+        game (update-in game [:players color :bridges :board source] #(conj % at))
+        game (update-in game [:players color :bridges :board at] #(conj % source))
+        game (update-in game [:board source :bridges at] (constantly color))
+        game (update-in game [:board at :bridges source] (constantly color))]
+    game))
 
 (defn convert-action
-  [game color at type])
+  [game color cells at type]
+  (let [player (get-player game color)]
+    (cond
+     (not ((get pattern-present? type) (:board game) cells at))
+     (throw 
+      (ex-info 
+       (format "%s player is not making a %s pattern with %s!" color type cells) {}))
+
+     (not (every? #(ships-at? player %) cells))
+     (throw (ex-info (format "%s player does not have ships in all of %s!" color cells) {}))
+
+     :else
+     (if (= type :bridge)
+       (convert-bridge game color cells at)
+       (convert-station game color cells at type)))))
