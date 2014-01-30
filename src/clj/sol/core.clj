@@ -312,10 +312,17 @@
       (adjacent-cells? board b to)))))
 
 (defn transmit-pattern?
-  [board cells [layer cell]]
+  [board cells to]
   (and
    (= 3 (count cells))
-   (let [[a b c] cells])))
+   (let [[a b c] (sort-by (comp layer-index first) cells)
+         layer-order (map (comp layer-index first) [a b c])
+         diffs (diff-ns layer-order)]
+     (and
+      (= c to)
+      (= diffs (list 1 1))
+      (adjacent-cells? board a b)
+      (adjacent-cells? board b c)))))
 
 (defn pattern-present?
   [game color at type]

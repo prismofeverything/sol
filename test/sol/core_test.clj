@@ -1,7 +1,67 @@
 (ns sol.core-test
-  (:use clojure.test
-        sol.core))
+  (:use clojure.test)
+  (:require [sol.core :as sol]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+(def game
+  (sol/new-game [:blue :purple :green]))
+
+(deftest move-test
+  (let [blue-orbit (get-in game [:players :blue :orbit])
+        upper-cells (:upper sol/layer-cells)
+        after (sol/radial-after blue-orbit upper-cells)
+        before (sol/radial-before blue-orbit upper-cells)
+
+        ;; launch some ships
+        game (sol/launch-ship game :blue :upper)
+        game (sol/launch-ship game :blue :upper)
+        game (sol/launch-ship game :blue :lower)
+
+        ;; move them around
+        game (sol/move-action 
+              game :blue 
+              [:upper blue-orbit] 
+              [:upper after])
+        game (sol/move-action 
+              game :blue 
+              [:upper blue-orbit] 
+              [:upper before])
+        game (sol/move-action 
+              game :blue 
+              [:upper before] 
+              [:lower before])
+        game (sol/move-action 
+              game :blue 
+              [:lower blue-orbit] 
+              [:lower before])]
+
+    ;; are they where they are supposed to be?
+    (is (= 2 (get-in game [:players :blue :ships :board [:lower before]])))
+    (is (= 1 (get-in game [:players :blue :ships :board [:upper after]])))
+    (is (= 0 (get-in game [:players :blue :ships :board [:upper blue-orbit]])))
+    (is (= 2 (get-in game [:board [:lower before] :ships :blue])))
+    (is (= 1 (get-in game [:board [:upper after] :ships :blue])))
+    (is (= 0 (get-in game [:board [:upper blue-orbit] :ships :blue])))))
+
+(deftest harvest-pattern-test
+  (is (sol/harvest-pattern? (:board game) [[:convective 1] [:convective 12]] [:convective 13]))
+  (is (sol/harvest-pattern? (:board game) [[:core 1] [:core 3]] [:core 2]))
+  (is (sol/harvest-pattern? (:board game) [[:core 1] [:core 4]] [:core 5]))
+  (is (not (sol/harvest-pattern? (:board game) [[:core 1] [:core 4]] [:core 2]))))
+
+(deftest build-pattern-test
+  (is (sol/build-pattern? (:board game) [[:convective 1] [:convective 13]] [:convective 13]))
+  (is (sol/build-pattern? (:board game) [[:convective 1] [:convective 13]] [:convective 1]))
+  (is (not (sol/build-pattern? (:board game) [[:convective 1] [:convective 13]] [:convective 2]))))
+
+(deftest bridge-pattern-test
+  (is (sol/bridge-pattern? (:board game) [[:upper 3] [:lower 3]] [:convective 3]))
+  (is (sol/bridge-pattern? (:board game) [[:convective 3] [:radiative 2]] [:core 1]))
+  (is (not (sol/bridge-pattern? (:board game) [[:convective 3] [:radiative 2]] [:radiative 1])))
+  (is (not (sol/bridge-pattern? (:board game) [[:convective 3] [:radiative 2]] [:core 5]))))
+
+(deftest transmit-pattern-test
+  (is (sol/transmit-pattern? (:board game) [[:upper 5] [:lower 5] [:convective 5]] [:convective 5]))
+  (is (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:core 3]] [:core 3]))
+  (is (not (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:core 3]] [:core 5])))
+  (is (not (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:core 5]] [:core 5])))
+  (is (not (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:radiative 5]] [:core 3]))))
