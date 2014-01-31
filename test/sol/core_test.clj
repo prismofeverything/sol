@@ -28,19 +28,19 @@
         game (sol/launch-ship game :blue :lower)
 
         ;; move them around
-        game (sol/move-action 
+        game (sol/move-ship 
               game :blue 
               [:upper orbit] 
               [:upper after])
-        game (sol/move-action 
+        game (sol/move-ship 
               game :blue 
               [:upper orbit] 
               [:upper before])
-        game (sol/move-action 
+        game (sol/move-ship 
               game :blue 
               [:upper before] 
               [:lower before])
-        game (sol/move-action 
+        game (sol/move-ship 
               game :blue 
               [:lower orbit] 
               [:lower before])]
@@ -86,7 +86,7 @@
         game (sol/launch-ship game :green :lower)]
     (try 
       (do
-        (sol/move-action 
+        (sol/move-ship 
          game :green
          [:lower orbit]
          [:convective orbit])
@@ -98,11 +98,11 @@
                 [:convective orbit]
                 :bridge)
 
-          game (sol/move-action
+          game (sol/move-ship
                 game :green
                 [:lower orbit]
                 [:convective orbit])
-          game (sol/move-action
+          game (sol/move-ship
                 game :green
                 [:lower orbit]
                 [:convective orbit])

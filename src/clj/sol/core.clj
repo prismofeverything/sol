@@ -1,12 +1,12 @@
 (ns sol.core)
 
 (def sol-layers
-  [{:name :upper :cells 13 :reward 1 :instability 0}
-   {:name :lower :cells 13 :reward 2 :instability 0}
-   {:name :convective :cells 13 :reward 3 :instability 1}
-   {:name :radiative :cells 8 :reward 5 :instability 2}
-   {:name :core :cells 5 :reward 8 :instability 3}
-   {:name :wormhole :cells 1 :reward 2 :instability 1}])
+  [{:name :upper :cells 13 :reward {:owner 1 :other 0 :tribute 0} :instability 0}
+   {:name :lower :cells 13 :reward {:owner 2 :other 1 :tribute 1} :instability 0}
+   {:name :convective :cells 13 :reward {:owner 3 :other 2 :tribute 1} :instability 1}
+   {:name :radiative :cells 8 :reward {:owner 5 :other 3 :tribute 2} :instability 2}
+   {:name :core :cells 5 :reward {:owner 8 :other 5 :tribute 3} :instability 3}
+   {:name :wormhole :cells 1 :reward {:owner 2 :other 0 :tribute 0} :instability 1}])
 
 (defn layer-map
   [layers key]
@@ -306,7 +306,7 @@
      (remove-ship game color at))
    game cells))
 
-(defn move-ship
+(defn relocate-ship
   [game color from to]
   (-> game 
       (remove-ship color from)
@@ -329,7 +329,7 @@
   [game color amount]
   (update-in game [:players color :energy] #(+ % amount)))
 
-(defn move-action
+(defn move-ship
   [game color from to]
   (let [player (get-player game color)]
     (cond 
@@ -343,7 +343,7 @@
      
      (bridge-required? from to)
      (if-let [bridge (find-bridge (:board game) from to)]
-       (let [game (move-ship game color from to)]
+       (let [game (relocate-ship game color from to)]
          (if-not (= bridge color)
            (gain-energy game bridge 1)
            game))
@@ -351,7 +351,7 @@
         (ex-info 
          (format "%s player cannot move ship from %s to %s because there is no bridge present!" color from to) {})))
 
-     :else (move-ship game color from to))))
+     :else (relocate-ship game color from to))))
 
 (defn harvest-pattern?
   [board cells [layer cell]]
@@ -402,6 +402,10 @@
       (= diffs (list 1 1))
       (adjacent-cells? board a b)
       (adjacent-cells? board b c)))))
+
+(defn ships-everywhere?
+  [player cells]
+  (every? (partial ships-at? player) cells))
 
 (def pattern-present?
   {:harvest harvest-pattern?
@@ -456,7 +460,7 @@
       (ex-info 
        (format "%s player is not making a %s pattern with %s!" color type cells) {}))
 
-     (not (every? #(ships-at? player %) cells))
+     (not (ships-everywhere? player cells))
      (throw (ex-info (format "%s player does not have ships in all of %s!" color cells) {}))
 
      :else
@@ -464,3 +468,77 @@
          (return-ships-to-reserve color cells)
          (convert-ships color cells at type)
          (pull-instability-cards (get layer-instability (first at)))))))
+
+(defn gather-stations
+  [game cells]
+  (map 
+   (fn [[layer cell]]
+     (assoc (get-in game [:board [layer cell] :station]) 
+       :layer layer
+       :level (layer-index layer)))
+   cells))
+
+(defn reward-for-station
+  [color station]
+  (if (= color (:color station))
+    {color (get-in layer-reward [(:layer station) :owner])}
+    {color (get-in layer-reward [(:layer station) :other])
+     (:color station) (get-in layer-reward [(:layer station) :tribute])}))
+
+(defn safe-add
+  [a b]
+  (+ (or a 0) (or b 0)))
+
+(defn compile-rewards
+  [color stations]
+  (apply 
+   (partial merge-with safe-add) 
+   (map (partial reward-for-station color) stations)))
+
+(defn compile-bonus
+  [color stations]
+  (let [relevant-stations (filter #(= color (:color %)) stations)]
+    (if (>= 1 (count relevant-stations))
+      0
+      (let [bonus-stations (drop-last (sort-by :level relevant-stations))
+            bonuses (map #(get-in layer-reward [(:layer %) :owner]) bonus-stations)]
+        (reduce + 0 bonuses)))))
+
+(defn distribute-rewards
+  [game rewards]
+  (reduce
+   (fn [game [color reward]]
+     ())
+   game rewards))
+
+(defn activate-harvest
+  [game color rewards bonus]
+  (-> game 
+      (update-in [:players color :energy])))
+
+(defn activate-station
+  [game color type rewards bonus])
+
+(defn activate-action
+  [game color cells]
+  (let [player (get-player game color)
+        stations (gather-stations game cells)
+        station-types (set (map :type stations))]
+    (cond
+     (not (ships-everywhere? player cells))
+     (throw (ex-info (format "%s player does not have ships in all of %s!" color cells) {}))
+
+     (contains? station-types nil)
+     (throw
+      (ex-info
+       (format "%s player cannot activate an empty station in %s!" color cells) {}))
+
+     (< 1 (count station-types))
+     (throw 
+      (ex-info 
+       (format "%s player cannot activate more than one type of station (%s) in %s!" color station-types cells) {}))
+
+     :else
+     (let [rewards (compile-rewards color stations)
+           bonus (compile-bonus color stations)]
+       (activate-station game color (first station-types) rewards bonus)))))
