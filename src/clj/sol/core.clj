@@ -51,7 +51,6 @@
    :revolution
    :rotation
    :fluctuation
-   :friction
    :acceleration])
 
 (def instability-limit 13)
