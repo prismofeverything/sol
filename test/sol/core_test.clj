@@ -243,7 +243,8 @@
         _ (is (= 3 (get-in game [:players :purple :ark])))
 
         ;; one for bridge conversion, one for transmit conversion and another for transmit activation
-        total-cards (* sol/cards-per-suit (+ 2 (count (get-in game [:players]))))
         cards-drawn 3
+        total-cards (* sol/cards-per-suit (+ 2 (count (get-in game [:players]))))
         cards-left (count (get-in game [:instability :deck]))
         _ (is (= (- total-cards cards-drawn) cards-left))]))
+

@@ -528,7 +528,9 @@
 
 (defn safe-add
   [a b]
-  (+ (or a 0) (or b 0)))
+  (+ 
+   (or a 0) 
+   (or b 0)))
 
 (defn compile-rewards
   [color stations]
@@ -590,11 +592,10 @@
    :transmit activate-transmit})
 
 (defn activate-station
-  [game color type stations rewards bonus]
+  [game color type rewards bonus instability]
   (let [activation (get station-types type)
         reward (get rewards color)
-        other-rewards (dissoc rewards color)
-        instability (compound-instability stations)]
+        other-rewards (dissoc rewards color)]
     (-> game
         (activation color reward bonus)
         (distribute-rewards type other-rewards)
@@ -614,16 +615,20 @@
       (ex-info
        (format "%s player cannot activate an empty station in %s!" color cells) {}))
 
-     (< 1 (count station-types))
+     (> (count station-types) 1)
      (throw 
       (ex-info 
        (format "%s player cannot activate more than one type of station (%s) in %s!" color station-types cells) {}))
 
      :else
      (let [rewards (compile-rewards color stations)
-           bonus (compile-bonus color stations)]
-       (activate-station game color (first station-types) stations rewards bonus)))))
+           bonus (compile-bonus color stations)
+           instability (compound-instability stations)]
+       (activate-station game color (first station-types) rewards bonus instability)))))
 
 (defn choose-action
-  [])
+  [game color])
+
+(defn take-turn
+  [game])
 
