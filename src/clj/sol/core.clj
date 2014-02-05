@@ -1,4 +1,5 @@
-(ns sol.core)
+(ns sol.core
+  (:require [sol.math :as math]))
 
 (def sol-layers
   [{:name :upper :cells 13 :reward {:owner 1 :other 0 :tribute 0} :instability 0}
@@ -197,6 +198,7 @@
         harvest-start [:upper after]
         build-start [:upper (radial-after after 13)]
         player {:color color
+                :events (math/queue)
                 :energy 0
                 :orbit start
                 :ships {:reserve 13 :bay 8 :board {}}
@@ -227,6 +229,7 @@
     {:players players
      :board board
      :order colors
+     :turn (first colors)
      :instability (fresh-instability colors)}))
 
 (defn advance-orbit
@@ -282,6 +285,45 @@
   [x]
   (or (nil? x) (<= x 0)))
 
+(defn build-ships
+  ([player amount] (build-ships player amount amount))
+  ([player amount expense]
+     (let [energy (:energy player)
+           color (:color player)
+           reserve (get-in player [:ships :reserve])]
+       (cond 
+        (< energy expense)
+        (throw
+         (ex-info
+          (format "%s player cannot build %s ships because they only have %s energy!" color amount energy) {}))
+
+        (< reserve amount)
+        (throw
+         (ex-info
+          (format "% player cannot build %s ships because they only have %s in reserve!" color amount reserve) {}))
+
+        :else
+        (-> player
+            (update-in [:energy] #(- % expense))
+            (update-in [:ships :reserve] #(- % amount))
+            (update-in [:ships :bay] #(+ % amount)))))))
+
+(defn transmit-energy
+  ([player amount] (transmit-energy player amount amount))
+  ([player amount expense]
+     (let [color (:color player) 
+           energy (:energy player)]
+       (cond 
+        (< energy expense)
+        (throw
+         (ex-info
+          (format "%s player cannot transmit %s energy because they only have %s!" color amount energy) {}))
+
+        :else
+        (-> player
+            (update-in [:energy] #(- % expense))
+            (update-in [:ark] #(+ % amount)))))))
+
 (defn place-ship
   [game color at]
   (-> game 
@@ -293,7 +335,7 @@
   (if (void? (get-in game [:players color :ships :board at]))
     (throw 
      (ex-info 
-      (format "cannot remove %s ship from %s because there are no %s ships there!" color at color) color))
+      (format "cannot remove %s ship from %s because there are no %s ships there!" color at color) {}))
     (-> game 
         (update-in [:players color :ships :board at] dec)
         (update-in [:board at :ships color] dec))))
@@ -503,20 +545,60 @@
             bonuses (map #(get-in layer-reward [(:layer %) :owner]) bonus-stations)]
         (reduce + 0 bonuses)))))
 
+(defn compound-instability
+  [stations]
+  (reduce 
+   (fn [instability station]
+     (+ instability (get layer-instability (:layer station)))) 
+   0 stations))
+
+(defn add-movement-events
+  [queue n]
+  (reduce
+   (fn [queue n]
+     (conj queue {:type :move :number n}))
+   queue (range 1 (inc n))))
+
+(defn add-event
+  [queue type reward]
+  (conj queue {:type type :number reward}))
+
 (defn distribute-rewards
-  [game rewards]
+  [game type rewards]
   (reduce
    (fn [game [color reward]]
-     ())
+     (update-in game [:players color :events] #(add-event % type reward)))
    game rewards))
 
 (defn activate-harvest
-  [game color rewards bonus]
+  [game color reward bonus]
   (-> game 
-      (update-in [:players color :energy])))
+      (gain-energy color reward)
+      (update-in [:players color :events] #(add-movement-events % bonus))))
+
+(defn activate-build
+  [game color reward bonus]
+  (update-in game [:players color] #(build-ships % reward (- reward bonus))))
+
+(defn activate-transmit
+  [game color reward bonus]
+  (update-in game [:players color] #(transmit-energy % reward (- reward bonus))))
+
+(def station-types
+  {:harvest activate-harvest
+   :build activate-build
+   :transmit activate-transmit})
 
 (defn activate-station
-  [game color type rewards bonus])
+  [game color type stations rewards bonus]
+  (let [activation (get station-types type)
+        reward (get rewards color)
+        other-rewards (dissoc rewards color)
+        instability (compound-instability stations)]
+    (-> game
+        (activation color reward bonus)
+        (distribute-rewards type other-rewards)
+        (pull-instability-cards instability))))
 
 (defn activate-action
   [game color cells]
@@ -540,4 +622,8 @@
      :else
      (let [rewards (compile-rewards color stations)
            bonus (compile-bonus color stations)]
-       (activate-station game color (first station-types) rewards bonus)))))
+       (activate-station game color (first station-types) stations rewards bonus)))))
+
+(defn choose-action
+  [])
+

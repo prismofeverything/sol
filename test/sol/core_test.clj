@@ -141,3 +141,109 @@
           (is false))
         (catch Exception e (do (println "WRONG PATTERN:" (.getMessage e)) (is true)))))))
 
+(deftest activate-test
+  (let [orbit (get-in game [:players :purple :orbit])
+        before (sol/radial-before orbit (:upper sol/layer-cells))
+        after (sol/radial-after orbit (:upper sol/layer-cells))
+        after-after (sol/radial-after after (:upper sol/layer-cells))
+
+        game (update-in game [:players :purple :ships :bay] #(+ % 3))
+        game (sol/launch-ship game :purple :upper)
+        game (sol/launch-ship game :purple :upper)
+        game (sol/launch-ship game :purple :upper)
+        game (sol/launch-ship game :purple :upper)
+
+        game (sol/launch-ship game :purple :lower)
+        game (sol/launch-ship game :purple :lower)
+        game (sol/launch-ship game :purple :lower)
+        game (sol/launch-ship game :purple :lower)
+        game (sol/launch-ship game :purple :lower)
+        game (sol/launch-ship game :purple :lower)
+        game (sol/launch-ship game :purple :lower)
+
+        game (sol/convert-action 
+              game :purple 
+              [[:upper orbit] [:lower orbit]] 
+              [:convective orbit]
+              :bridge)
+
+        game (sol/move-ship
+              game :purple
+              [:lower orbit]
+              [:lower after])
+        game (sol/move-ship
+              game :purple
+              [:lower orbit]
+              [:lower before])
+        game (sol/move-ship
+              game :purple
+              [:lower orbit]
+              [:convective orbit])
+        game (sol/move-ship
+              game :purple
+              [:lower orbit]
+              [:convective orbit])
+        game (sol/move-ship
+              game :purple
+              [:upper orbit]
+              [:upper after])
+        game (sol/move-ship
+              game :purple
+              [:upper orbit]
+              [:upper after])
+        game (sol/move-ship
+              game :purple
+              [:upper after]
+              [:upper after-after])
+
+        game (sol/convert-action 
+              game :purple 
+              [[:upper orbit] [:lower orbit] [:convective orbit]] 
+              [:convective orbit]
+              :transmit)
+        game (sol/convert-action 
+              game :purple 
+              [[:lower before] [:lower after]] 
+              [:lower orbit]
+              :harvest)
+
+        game (sol/activate-action
+              game :purple
+              [[:lower orbit] [:upper after]])
+
+        _ (is (= 3 (get-in game [:players :purple :energy])))
+        _ (is (= 0 (get-in game [:players :purple :ships :bay])))
+        _ (is (= 1 (count (get-in game [:players :purple :events]))))
+
+        game (sol/activate-action
+              game :purple
+              [[:upper after-after]])
+
+        _ (is (= 2 (get-in game [:players :purple :energy])))
+        _ (is (= 1 (get-in game [:players :purple :ships :bay])))
+
+        game (sol/launch-ship game :purple :upper)
+        game (sol/move-ship
+              game :purple
+              [:upper orbit]
+              [:upper after])
+
+        game (sol/activate-action
+              game :purple
+              [[:upper after]])
+
+        _ (is (= 3 (get-in game [:players :purple :energy])))
+        _ (is (= 0 (get-in game [:players :purple :ships :bay])))
+
+        game (sol/activate-action
+              game :purple
+              [[:convective orbit]])
+
+        _ (is (= 0 (get-in game [:players :purple :energy])))
+        _ (is (= 3 (get-in game [:players :purple :ark])))
+
+        ;; one for bridge conversion, one for transmit conversion and another for transmit activation
+        total-cards (* sol/cards-per-suit (+ 2 (count (get-in game [:players]))))
+        cards-drawn 3
+        cards-left (count (get-in game [:instability :deck]))
+        _ (is (= (- total-cards cards-drawn) cards-left))]))
