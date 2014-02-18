@@ -161,9 +161,9 @@
         game (sol/launch-ship game :purple :lower)
         game (sol/launch-ship game :purple :lower)
 
-        game (sol/convert-action 
-              game :purple 
-              [[:upper orbit] [:lower orbit]] 
+        game (sol/convert-action
+              game :purple
+              [[:upper orbit] [:lower orbit]]
               [:convective orbit]
               :bridge)
 
@@ -196,8 +196,8 @@
               [:upper after]
               [:upper after-after])
 
-        game (sol/convert-action 
-              game :purple 
+        game (sol/convert-action
+              game :purple
               [[:upper orbit] [:lower orbit] [:convective orbit]] 
               [:convective orbit]
               :transmit)

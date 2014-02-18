@@ -67,7 +67,7 @@
         other-suits (take (dec total-suits) (shuffle (rest instability-suits)))]
     (construct-deck (cons instability-suit other-suits))))
 
-(defn diff-ns
+(defn inner-diff
   "take the difference between every subsequent number in the list"
   [ns]
   (loop [prev (first ns) 
@@ -425,7 +425,7 @@
    (= 2 (count cells))
    (let [[a b] (sort-by (comp layer-index first) cells)
          layer-order (map (comp layer-index first) (concat [a b] [to]))
-         diffs (diff-ns layer-order)]
+         diffs (inner-diff layer-order)]
      (and 
       (= diffs (list 1 1))
       (adjacent-cells? board a b)
@@ -437,7 +437,7 @@
    (= 3 (count cells))
    (let [[a b c] (sort-by (comp layer-index first) cells)
          layer-order (map (comp layer-index first) [a b c])
-         diffs (diff-ns layer-order)]
+         diffs (inner-diff layer-order)]
      (and
       (= c to)
       (= diffs (list 1 1))
@@ -631,4 +631,5 @@
 
 (defn take-turn
   [game])
+
 
