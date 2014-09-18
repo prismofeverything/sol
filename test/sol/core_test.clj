@@ -270,15 +270,14 @@
               game :purple
               [[:lower orbit] [:upper after]])
 
-        _ (is (= 6 (get-in game [:players :purple :energy])))
+        _ (is (= 7 (get-in game [:players :purple :energy])))
         _ (is (= 2 (get-in game [:players :purple :ships :bay])))
-        _ (is (= 1 (count (get-in game [:players :purple :events]))))
 
         game (sol/activate-action
               game :purple
               [[:upper after-after]])
 
-        _ (is (= 5 (get-in game [:players :purple :energy])))
+        _ (is (= 6 (get-in game [:players :purple :energy])))
         _ (is (= 4 (get-in game [:players :purple :ships :bay])))
 
         game (sol/launch-ship game :purple :upper)
@@ -291,14 +290,14 @@
               game :purple
               [[:upper after]])
 
-        _ (is (= 6 (get-in game [:players :purple :energy])))
+        _ (is (= 7 (get-in game [:players :purple :energy])))
         _ (is (= 4 (get-in game [:players :purple :ships :bay])))
 
         game (sol/activate-action
               game :purple
               [[:convective orbit]])
 
-        _ (is (= 3 (get-in game [:players :purple :energy])))
+        _ (is (= 4 (get-in game [:players :purple :energy])))
         _ (is (= 3 (get-in game [:players :purple :ark])))
 
         ;; one for bridge conversion, one for transmit conversion and another for transmit activation

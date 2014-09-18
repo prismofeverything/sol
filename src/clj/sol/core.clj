@@ -563,7 +563,7 @@
 (defn compile-bonus
   [color stations]
   (let [relevant-stations (filter #(= color (:color %)) stations)]
-    (if (>= 1 (count relevant-stations))
+    (if (<= (count relevant-stations) 1)
       0
       (let [bonus-stations (drop-last (sort-by :level relevant-stations))
             bonuses (map #(get-in layer-reward [(:layer %) :owner]) bonus-stations)]
@@ -597,8 +597,7 @@
 (defn activate-harvest
   [game color reward bonus]
   (-> game 
-      (gain-energy color reward)
-      (update-in [:players color :events] #(add-movement-events % bonus))))
+      (gain-energy color (+ reward bonus))))
 
 (defn activate-build
   [game color reward bonus]
