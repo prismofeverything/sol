@@ -506,6 +506,7 @@
         (update-in [:players color :bridges :reserve] dec)
         (update-in [:players color :bridges :board source] #(conj % at))
         (update-in [:players color :bridges :board at] #(conj % source))
+        (update-in [:players color] provide-moves)
         (update-in [:board source :bridges at] (constantly color))
         (update-in [:board at :bridges source] (constantly color)))))
 
@@ -644,8 +645,15 @@
            game (return-ships game color cells :bay)]
        (activate-station game color (first station-types) rewards bonus instability)))))
 
-(defn choose-action
-  [game color])
+(def action-map
+  {:move move-action
+   :convert convert-action
+   :activate activate-action})
+
+(defn take-action
+  [game color action-key args]
+  (let [action (get action-map action-key)]
+    (apply (partial action game color) args)))
 
 (defn take-turn
   [game])
