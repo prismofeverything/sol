@@ -54,28 +54,44 @@
     (is (= 0 (get-in game [:board [:upper orbit] :ships :blue])))))
 
 (deftest harvest-pattern-test
-  (is (sol/harvest-pattern? (:board game) [[:convective 1] [:convective 12]] [:convective 13]))
-  (is (sol/harvest-pattern? (:board game) [[:core 1] [:core 3]] [:core 2]))
-  (is (sol/harvest-pattern? (:board game) [[:core 1] [:core 4]] [:core 5]))
-  (is (not (sol/harvest-pattern? (:board game) [[:core 1] [:core 4]] [:core 2]))))
+  (is (sol/harvest-pattern? 
+       (:board game) [[:convective 1] [:convective 12]] [:convective 13]))
+  (is (sol/harvest-pattern? 
+       (:board game) [[:core 1] [:core 3]] [:core 2]))
+  (is (sol/harvest-pattern? 
+       (:board game) [[:core 1] [:core 4]] [:core 5]))
+  (is (not (sol/harvest-pattern? 
+            (:board game) [[:core 1] [:core 4]] [:core 2]))))
 
 (deftest build-pattern-test
-  (is (sol/build-pattern? (:board game) [[:convective 1] [:convective 13]] [:convective 13]))
-  (is (sol/build-pattern? (:board game) [[:convective 1] [:convective 13]] [:convective 1]))
-  (is (not (sol/build-pattern? (:board game) [[:convective 1] [:convective 13]] [:convective 2]))))
+  (is (sol/build-pattern? 
+       (:board game) [[:convective 1] [:convective 13]] [:convective 13]))
+  (is (sol/build-pattern? 
+       (:board game) [[:convective 1] [:convective 13]] [:convective 1]))
+  (is (not (sol/build-pattern? 
+            (:board game) [[:convective 1] [:convective 13]] [:convective 2]))))
 
 (deftest bridge-pattern-test
-  (is (sol/bridge-pattern? (:board game) [[:upper 3] [:lower 3]] [:convective 3]))
-  (is (sol/bridge-pattern? (:board game) [[:convective 3] [:radiative 2]] [:core 1]))
-  (is (not (sol/bridge-pattern? (:board game) [[:convective 3] [:radiative 2]] [:radiative 1])))
-  (is (not (sol/bridge-pattern? (:board game) [[:convective 3] [:radiative 2]] [:core 5]))))
+  (is (sol/bridge-pattern? 
+       (:board game) [[:upper 3] [:lower 3]] [:convective 3]))
+  (is (sol/bridge-pattern? 
+       (:board game) [[:convective 3] [:radiative 2]] [:core 1]))
+  (is (not (sol/bridge-pattern? 
+            (:board game) [[:convective 3] [:radiative 2]] [:radiative 1])))
+  (is (not (sol/bridge-pattern? 
+            (:board game) [[:convective 3] [:radiative 2]] [:core 5]))))
 
 (deftest transmit-pattern-test
-  (is (sol/transmit-pattern? (:board game) [[:upper 5] [:lower 5] [:convective 5]] [:convective 5]))
-  (is (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:core 3]] [:core 3]))
-  (is (not (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:core 3]] [:core 5])))
-  (is (not (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:core 5]] [:core 5])))
-  (is (not (sol/transmit-pattern? (:board game) [[:convective 5] [:radiative 4] [:radiative 5]] [:core 3]))))
+  (is (sol/transmit-pattern? 
+       (:board game) [[:upper 5] [:lower 5] [:convective 5]] [:convective 5]))
+  (is (sol/transmit-pattern? 
+       (:board game) [[:convective 5] [:radiative 4] [:core 3]] [:core 3]))
+  (is (not (sol/transmit-pattern? 
+            (:board game) [[:convective 5] [:radiative 4] [:core 3]] [:core 5])))
+  (is (not (sol/transmit-pattern? 
+            (:board game) [[:convective 5] [:radiative 4] [:core 5]] [:core 5])))
+  (is (not (sol/transmit-pattern? 
+            (:board game) [[:convective 5] [:radiative 4] [:radiative 5]] [:core 3]))))
 
 (deftest convert-test
   (let [orbit (get-in game [:players :green :orbit])
@@ -147,7 +163,11 @@
         after (sol/radial-after orbit (:upper sol/layer-cells))
         after-after (sol/radial-after after (:upper sol/layer-cells))
 
-        game (update-in game [:players :purple :ships :bay] #(+ % 3))
+        game (update-in game [:players :purple :ships :bay] #(+ % 7))
+        game (sol/launch-ship game :purple :upper)
+        game (sol/launch-ship game :purple :upper)
+        game (sol/launch-ship game :purple :upper)
+        game (sol/launch-ship game :purple :upper)
         game (sol/launch-ship game :purple :upper)
         game (sol/launch-ship game :purple :upper)
         game (sol/launch-ship game :purple :upper)
@@ -167,6 +187,7 @@
               [:convective orbit]
               :bridge)
 
+        ;; move into harvest pattern in :lower
         game (sol/move-ship
               game :purple
               [:lower orbit]
@@ -175,6 +196,8 @@
               game :purple
               [:lower orbit]
               [:lower before])
+
+        ;; complete transmit pattern in :convective
         game (sol/move-ship
               game :purple
               [:lower orbit]
@@ -183,6 +206,32 @@
               game :purple
               [:lower orbit]
               [:convective orbit])
+
+        ;; make harvest pattern in :upper
+        game (sol/move-ship
+              game :purple
+              [:upper orbit]
+              [:upper after])
+        game (sol/move-ship
+              game :purple
+              [:upper after]
+              [:upper after-after])
+
+        ;; make build pattern in :upper
+        game (sol/move-ship
+              game :purple
+              [:upper orbit]
+              [:upper after])
+        game (sol/move-ship
+              game :purple
+              [:upper orbit]
+              [:upper after])
+        game (sol/move-ship
+              game :purple
+              [:upper after]
+              [:upper after-after])
+
+        ;; move ships to :upper build and harvest stations
         game (sol/move-ship
               game :purple
               [:upper orbit]
@@ -198,12 +247,22 @@
 
         game (sol/convert-action
               game :purple
-              [[:upper orbit] [:lower orbit] [:convective orbit]] 
+              [[:upper orbit] [:lower orbit] [:convective orbit]]
               [:convective orbit]
               :transmit)
-        game (sol/convert-action 
-              game :purple 
-              [[:lower before] [:lower after]] 
+        game (sol/convert-action
+              game :purple
+              [[:upper after] [:upper after-after]]
+              [:upper after-after]
+              :build)
+        game (sol/convert-action
+              game :purple
+              [[:upper orbit] [:upper after-after]]
+              [:upper after]
+              :harvest)
+        game (sol/convert-action
+              game :purple
+              [[:lower before] [:lower after]]
               [:lower orbit]
               :harvest)
 
@@ -211,16 +270,16 @@
               game :purple
               [[:lower orbit] [:upper after]])
 
-        _ (is (= 3 (get-in game [:players :purple :energy])))
-        _ (is (= 0 (get-in game [:players :purple :ships :bay])))
+        _ (is (= 6 (get-in game [:players :purple :energy])))
+        _ (is (= 2 (get-in game [:players :purple :ships :bay])))
         _ (is (= 1 (count (get-in game [:players :purple :events]))))
 
         game (sol/activate-action
               game :purple
               [[:upper after-after]])
 
-        _ (is (= 2 (get-in game [:players :purple :energy])))
-        _ (is (= 1 (get-in game [:players :purple :ships :bay])))
+        _ (is (= 5 (get-in game [:players :purple :energy])))
+        _ (is (= 4 (get-in game [:players :purple :ships :bay])))
 
         game (sol/launch-ship game :purple :upper)
         game (sol/move-ship
@@ -232,14 +291,14 @@
               game :purple
               [[:upper after]])
 
-        _ (is (= 3 (get-in game [:players :purple :energy])))
-        _ (is (= 0 (get-in game [:players :purple :ships :bay])))
+        _ (is (= 6 (get-in game [:players :purple :energy])))
+        _ (is (= 4 (get-in game [:players :purple :ships :bay])))
 
         game (sol/activate-action
               game :purple
               [[:convective orbit]])
 
-        _ (is (= 0 (get-in game [:players :purple :energy])))
+        _ (is (= 3 (get-in game [:players :purple :energy])))
         _ (is (= 3 (get-in game [:players :purple :ark])))
 
         ;; one for bridge conversion, one for transmit conversion and another for transmit activation

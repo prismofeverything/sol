@@ -179,14 +179,39 @@
           :bridges {}}])
       neighbors))))
 
+(def error-messages
+  {:station-already-present "%s player cannot add a %s station at %s because there is already a %s %s station there!"
+   :build-insufficient-energy "%s player cannot build %s ships because they only have %s energy!"
+   :build-insufficient-reserve "% player cannot build %s ships because they only have %s in reserve!"
+   :transmit-insufficient-energy "%s player cannot transmit %s energy because they only have %s!"
+   :no-ship-to-remove "cannot remove %s ship from %s because there are no %s ships there!"
+   :no-ships-in-bay "%s player has no ships in bay!"
+   :no-ship-present "%s player has no ships at %s!"
+   :move-not-adjacent "%s player cannot move ship from %s to %s because they are not adjacent!"
+   :move-no-bridge "%s player cannot move ship from %s to %s because there is no bridge present!"
+   :insufficient-moves "%s player has only %s moves but is trying to move %s times!"
+   :no-stations-remaining "%s player has no %s stations left in their reserve!"
+   :convert-incorrect-pattern "%s player is not making a %s pattern with %s!"
+   :convert-incomplete-pattern "%s player does not have ships in all of %s!"
+   :activate-missing-ships "%s player does not have ships in all of %s!"
+   :activate-missing-stations "%s player cannot activate an empty cell in %s!"
+   :activate-mixed-station-types "%s player cannot activate more than one type of station (%s) in %s!"})
+
+(defn forbidden!
+  ([error args] (forbidden! error args {}))
+  ([error args state]
+     (let [message (str "%s -- " (get error-messages error))]
+       (throw
+        (ex-info
+         (apply (partial format message error) args)
+         state)))))
+
 (defn place-station
   [board color at type]
   (if-let [pre-existing (get-in board [at :station])]
-    (throw 
-     (ex-info 
-      (format 
-       "%s player cannot add a %s station at %s because there is already a %s %s station there!"
-       color type at (:color pre-existing) (:type pre-existing))))
+    (forbidden!
+     :station-already-present
+     [color type at (:color pre-existing) (:type pre-existing)])
     (assoc-in 
      board [at :station] 
      {:color color
@@ -194,21 +219,17 @@
 
 (defn make-player
   [board color start]
-  (let [after (radial-after start 13)
-        harvest-start [:upper after]
-        build-start [:upper (radial-after after 13)]
-        player {:color color
+  (let [player {:color color
                 :events (math/queue)
-                :energy 0
+                :energy 3
+                :moves 3
                 :orbit start
                 :ships {:reserve 13 :bay 8 :board {}}
-                :bridges {:reserve 13 :board {}}
-                :build {:reserve 4 :board {build-start true}}
-                :harvest {:reserve 4 :board {harvest-start true}}
+                :bridges {:reserve 8 :board {}}
+                :build {:reserve 3 :board {}}
+                :harvest {:reserve 3 :board {}}
                 :transmit {:reserve 3 :board {}}
-                :ark 0}
-        board (place-station board color harvest-start :harvest)
-        board (place-station board color build-start :build)]
+                :ark 0}]
     [board player]))
 
 (defn fresh-instability
@@ -235,6 +256,15 @@
 (defn advance-orbit
   [player]
   (update-in player [:orbit] #(radial-after % 13)))
+
+(defn board-count
+  [player type]
+  (count (get-in player [type :board])))
+
+(defn provide-moves
+  [player]
+  (assoc player 
+    :moves (+ 3 (board-count player :bridges))))
 
 (defn pull-instability-cards
   [game number]
@@ -293,14 +323,10 @@
            reserve (get-in player [:ships :reserve])]
        (cond 
         (< energy expense)
-        (throw
-         (ex-info
-          (format "%s player cannot build %s ships because they only have %s energy!" color amount energy) {}))
+        (forbidden! :build-insufficient-energy [color amount energy])
 
         (< reserve amount)
-        (throw
-         (ex-info
-          (format "% player cannot build %s ships because they only have %s in reserve!" color amount reserve) {}))
+        (forbidden! :build-insufficient-reserve [color amount reserve])
 
         :else
         (-> player
@@ -313,16 +339,11 @@
   ([player amount expense]
      (let [color (:color player) 
            energy (:energy player)]
-       (cond 
-        (< energy expense)
-        (throw
-         (ex-info
-          (format "%s player cannot transmit %s energy because they only have %s!" color amount energy) {}))
-
-        :else
-        (-> player
-            (update-in [:energy] #(- % expense))
-            (update-in [:ark] #(+ % amount)))))))
+       (if (< energy expense)
+         (forbidden! :transmit-insufficient-energy [color amount energy])
+         (-> player
+             (update-in [:energy] #(- % expense))
+             (update-in [:ark] #(+ % amount)))))))
 
 (defn place-ship
   [game color at]
@@ -333,10 +354,8 @@
 (defn remove-ship
   [game color at]
   (if (void? (get-in game [:players color :ships :board at]))
-    (throw 
-     (ex-info 
-      (format "cannot remove %s ship from %s because there are no %s ships there!" color at color) {}))
-    (-> game 
+    (forbidden! :no-ship-to-remove [color at color])
+    (-> game
         (update-in [:players color :ships :board at] dec)
         (update-in [:board at :ships color] dec))))
 
@@ -361,7 +380,7 @@
   [game color layer]
   (let [player (get-player game color)]
     (if-not (ships-in-bay? player)
-      (throw (ex-info (format "%s player has no ships in bay!" color) player))
+      (forbidden! :no-ships-in-bay [color] player)
       (let [at [layer (:orbit player)]
             game (update-in game [:players color :ships :bay] dec)]
         (place-ship game color at)))))
@@ -375,12 +394,10 @@
   (let [player (get-player game color)]
     (cond 
      (not (ships-at? player from))
-     (throw (ex-info (format "%s player has no ships at %s!" color from) player))
+     (forbidden! :no-ship-present [color from] player)
 
      (not (adjacent-cells? (:board game) from to))
-     (throw 
-      (ex-info 
-       (format "%s player cannot move ship from %s to %s because they are not adjacent!" color from to) player))
+     (forbidden! :move-not-adjacent [color from to] player)
      
      (bridge-required? from to)
      (if-let [bridge (find-bridge (:board game) from to)]
@@ -388,11 +405,19 @@
          (if-not (= bridge color)
            (gain-energy game bridge 1)
            game))
-       (throw 
-        (ex-info 
-         (format "%s player cannot move ship from %s to %s because there is no bridge present!" color from to) {})))
+       (forbidden! :move-no-bridge [color from to]))
 
      :else (relocate-ship game color from to))))
+
+(defn move-action
+  [game color moves]
+  (let [move-limit (:moves (get-player game color))]
+    (if (> (count moves) move-limit)
+      (forbidden! :insufficient-moves [color move-limit (count moves)] {:moves moves})
+      (reduce
+       (fn [game [from to]]
+         (move-ship game color from to))
+       game moves))))
 
 (defn harvest-pattern?
   [board cells [layer cell]]
@@ -454,18 +479,16 @@
    :bridge bridge-pattern?
    :transmit transmit-pattern?})
 
-(defn return-ships-to-reserve
-  [game color cells]
+(defn return-ships
+  [game color cells to]
   (-> game
       (remove-ships color cells)
-      (update-in [:players color :ships :reserve] #(+ (count cells) %))))
+      (update-in [:players color :ships to] #(+ (count cells) %))))
 
 (defn player-station
   [player at type]
   (if (>= 0 (get-in player [type :reserve]))
-    (throw
-     (ex-info
-      (format "%s player has no %s stations left in their reserve!" (:color player) type) player))
+    (forbidden! :no-stations-remaining [(:color player) type] player)
     (-> player 
         (update-in [type :reserve] dec)
         (update-in [type :board at] (constantly true)))))
@@ -497,16 +520,14 @@
   (let [player (get-player game color)]
     (cond
      (not ((get pattern-present? type) (:board game) cells at))
-     (throw 
-      (ex-info 
-       (format "%s player is not making a %s pattern with %s!" color type cells) {}))
+     (forbidden! :convert-incorrect-pattern [color type cells])
 
      (not (ships-everywhere? player cells))
-     (throw (ex-info (format "%s player does not have ships in all of %s!" color cells) {}))
+     (forbidden! :convert-incomplete-pattern [color cells])
 
      :else
      (-> game
-         (return-ships-to-reserve color cells)
+         (return-ships color cells :reserve)
          (convert-ships color cells at type)
          (pull-instability-cards (get layer-instability (first at)))))))
 
@@ -608,22 +629,19 @@
         station-types (set (map :type stations))]
     (cond
      (not (ships-everywhere? player cells))
-     (throw (ex-info (format "%s player does not have ships in all of %s!" color cells) {}))
+     (forbidden! :activate-missing-ships [color cells])
 
      (contains? station-types nil)
-     (throw
-      (ex-info
-       (format "%s player cannot activate an empty station in %s!" color cells) {}))
+     (forbidden! :activate-missing-stations [color cells])
 
      (> (count station-types) 1)
-     (throw 
-      (ex-info 
-       (format "%s player cannot activate more than one type of station (%s) in %s!" color station-types cells) {}))
+     (forbidden! :activate-mixed-station-types [color station-types cells])
 
      :else
      (let [rewards (compile-rewards color stations)
            bonus (compile-bonus color stations)
-           instability (compound-instability stations)]
+           instability (compound-instability stations)
+           game (return-ships game color cells :bay)]
        (activate-station game color (first station-types) rewards bonus instability)))))
 
 (defn choose-action
