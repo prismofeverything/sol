@@ -64,3 +64,13 @@
 (defn queue
   []
   (clojure.lang.PersistentQueue/EMPTY))
+
+(defn n-alike?
+  [n seq]
+  (not (empty? (filter (partial = n) (map count (vals (group-by identity seq)))))))
+
+(defn generate-combinations
+  "all possibilities of rolling n dice with x sides"
+  [n x]
+  ())
+

@@ -3,7 +3,7 @@
   :url "http://github.com/prismofeverything"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.5.1"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
                  [http-kit "2.1.12"]
                  [polaris "0.0.2"]
                  [ring "1.2.0"]
@@ -12,7 +12,7 @@
                  [domina "1.0.2"]
                  [com.keminglabs/singult "0.1.6"]
                  [org.clojure/google-closure-library-third-party "0.0-2029"]]
-  :plugins [[lein-cljsbuild "0.3.3"]]
+  :plugins [[lein-cljsbuild "1.0.0"]]
   :source-paths ["src/clj"]
   :resource-paths ["resources/"]
   :min-lein-version "2.0.0"
@@ -23,8 +23,8 @@
   {:builds 
    {:dev 
     {:libs ["singult"]
-     :source-paths ["src/cljs"]  
-     :compiler 
+     :source-paths ["src/cljs"]
+     :compiler
      {:externs ["resources/public/js/externs/snap.svg.externs.js"]
       :optimizations :whitespace
       :output-to  "resources/public/js/app/sol.js"
